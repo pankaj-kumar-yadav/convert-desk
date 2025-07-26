@@ -2,207 +2,107 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Copy, Check, Download, Eye, Settings2, Sparkles, ArrowLeft, FileJson, Zap } from "lucide-react"
-import FileUploader from "@/components/file-uploader"
-import ExcelPreview from "@/components/excel-preview"
+import { FileDropZone } from "@/components/ui/file-drop-zone"
+import { DataPreviewTable } from "@/components/ui/data-preview-table"
 import SheetSelector from "@/components/sheet-selector"
 import AdvancedSettings from "@/components/advanced-settings"
 import ColorConfig from "@/components/color-config"
-import { useLocalStorage } from "@/hooks/use-local-storage"
-import { useMemoryWarning } from "@/hooks/use-memory-warning"
+import MemoryStatus from "@/components/memory-status"
+import { useExcelParser } from "@/hooks/use-excel-parser"
+import { useConversion } from "@/hooks/use-conversion"
+import { useMappings } from "@/hooks/use-mappings"
+import { useTheme } from "@/hooks/use-theme"
+import { StorageService } from "@/services/storage-service"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import MemoryStatus from "@/components/memory-status"
 import KeyMapping from "@/components/kpi-mapping"
-
-type DataType = "string" | "number" | "boolean" | "auto"
-type MappingType = "excel" | "manual"
-
-interface MappingItem {
-    id: string
-    type: MappingType
-    excelColumn?: string
-    jsonKey: string
-    dataType: DataType
-    manualValue?: string | number | boolean
-    autoIncrement?: boolean
-}
 
 export default function ConverterPage() {
     const [file, setFile] = useState<File | null>(null)
-    const [sheetData, setSheetData] = useState<any>(null)
-    const [selectedSheet, setSelectedSheet] = useState<string>("")
-    const [sheets, setSheets] = useState<string[]>([])
     const [startRow, setStartRow] = useState<number>(1)
     const [endRow, setEndRow] = useState<number | null>(null)
-    const [mappings, setMappings] = useState<MappingItem[]>([])
-    const [convertedData, setConvertedData] = useState<any[] | null>(null)
-    const [conversionId, setConversionId] = useState<string>("")
     const [copied, setCopied] = useState(false)
-    const [customColors, setCustomColors] = useState<Record<string, string>>({})
-    const { showMemoryWarning, memoryUsage } = useMemoryWarning()
-    const { saveToLocalStorage, getLocalStorageSize } = useLocalStorage()
+
+    const { sheets, currentSheet, isLoading, error, parseFile, selectSheet, reset } = useExcelParser()
+    const { convertedData, isConverting, convert, reset: resetConversion } = useConversion()
+    const { mappings, addMapping, updateMapping, deleteMapping, setMappingsDirectly } = useMappings()
+    const { currentTheme, applyTheme } = useTheme()
+
     const searchParams = useSearchParams()
     const router = useRouter()
 
-    // Add this after the existing useState declarations
+    // Handle sheet persistence
     useEffect(() => {
-        // Check for sheet parameter in URL on component mount
         const sheetFromUrl = searchParams.get("sheet")
-        if (sheetFromUrl && sheets.includes(sheetFromUrl)) {
-            setSelectedSheet(sheetFromUrl)
+        if (sheetFromUrl && sheets.some((s) => s.name === sheetFromUrl)) {
+            selectSheet(sheetFromUrl)
         }
-    }, [searchParams, sheets])
+    }, [searchParams, sheets, selectSheet])
 
     // Reset state when file changes
     useEffect(() => {
         if (file) {
-            setSheetData(null)
-            setSelectedSheet("")
-            setSheets([])
-            setStartRow(1)
-            setEndRow(null)
-            setMappings([])
-            setConvertedData(null)
-            setConversionId("")
+            reset()
+            resetConversion()
         }
-    }, [file])
+    }, [file, reset, resetConversion])
 
-    const handleFileUpload = (uploadedFile: File) => {
+    const handleFileUpload = async (uploadedFile: File) => {
         setFile(uploadedFile)
+        await parseFile(uploadedFile)
     }
 
-    // Update the handleSheetSelect function to update URL
-    const handleSheetSelect = (sheetName: string, data: any) => {
-        setSelectedSheet(sheetName)
-        setSheetData(data)
+    const handleSheetSelect = (sheetName: string) => {
+        selectSheet(sheetName)
 
-        // Update URL with selected sheet
+        // Update URL
         const params = new URLSearchParams(searchParams.toString())
         params.set("sheet", sheetName)
-        router.replace(`/converter?${params.toString()}`, { scroll: false })
+        router.replace(`/xlsx-to-json?${params.toString()}`, { scroll: false })
     }
 
-    const handleSheetsLoaded = (sheetNames: string[]) => {
-        setSheets(sheetNames)
-        if (sheetNames.length > 0) {
-            setSelectedSheet(sheetNames[0])
+    const handleConvert = async () => {
+        if (!currentSheet || !file) return
+
+        try {
+            await convert(currentSheet.data, { startRow, endRow, mappings }, file.name, currentSheet.name)
+        } catch (error) {
+            alert(error instanceof Error ? error.message : "Conversion failed")
         }
     }
 
-    const handleConvert = () => {
-        if (!sheetData || !selectedSheet) return
-
-        // Apply mappings
-        const autoIncrementCounters: Record<string, number> = {}
-
-        // Initialize counters for auto-increment fields
-        mappings.forEach((mapping) => {
-            if (mapping.autoIncrement && mapping.type === "manual") {
-                autoIncrementCounters[mapping.id] = 1
-            }
-        })
-
-        const converted = sheetData
-            .map((row: any, index: number) => {
-                // Skip rows before startRow
-                if (index < startRow - 1) return null
-
-                // Stop at endRow if specified
-                if (endRow !== null && index >= endRow) return null
-
-                const newRow: Record<string, any> = {}
-
-                // Apply mappings
-                mappings.forEach((mapping) => {
-                    if (mapping.type === "excel" && mapping.excelColumn) {
-                        // Excel column mapping
-                        let value = row[mapping.excelColumn]
-
-                        switch (mapping.dataType) {
-                            case "string":
-                                value = String(value ?? "")
-                                break
-                            case "number":
-                                value = Number(value)
-                                if (isNaN(value)) value = 0
-                                break
-                            case "boolean":
-                                if (typeof value === "string") {
-                                    value = value.toLowerCase()
-                                    value = value === "true" || value === "yes" || value === "1"
-                                } else {
-                                    value = Boolean(value)
-                                }
-                                break
-                            case "auto":
-                            default:
-                                // Try to infer the type
-                                if (typeof value === "string") {
-                                    if (value.toLowerCase() === "true" || value.toLowerCase() === "false") {
-                                        value = value.toLowerCase() === "true"
-                                    } else if (!isNaN(Number(value)) && value.trim() !== "") {
-                                        value = Number(value)
-                                    }
-                                }
-                                break
-                        }
-
-                        newRow[mapping.jsonKey] = value
-                    } else if (mapping.type === "manual") {
-                        // Manual value mapping
-                        if (mapping.autoIncrement) {
-                            newRow[mapping.jsonKey] = autoIncrementCounters[mapping.id]++
-                        } else {
-                            newRow[mapping.jsonKey] = mapping.manualValue
-                        }
-                    }
-                })
-
-                return newRow
-            })
-            .filter(Boolean)
-
-        setConvertedData(converted)
-
-        // Generate a unique ID for this conversion
-        const id = `conversion_${Date.now()}`
-        setConversionId(id)
-
-        // Save to local storage
-        saveToLocalStorage(id, {
-            timestamp: Date.now(),
-            filename: file?.name || "unknown",
-            sheet: selectedSheet,
-            data: converted,
-        })
-    }
-
-    const handleClearLocalStorage = () => {
-        localStorage.clear()
-        alert("Local storage has been cleared")
-    }
-
-    const handleCopyJson = () => {
+    const handleCopyJson = async () => {
         if (!convertedData) return
 
-        const jsonString = JSON.stringify(convertedData, null, 2)
-        navigator.clipboard.writeText(jsonString)
-
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
+        try {
+            await navigator.clipboard.writeText(JSON.stringify(convertedData, null, 2))
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
+        } catch (error) {
+            alert("Failed to copy to clipboard")
+        }
     }
 
-    const handleColorChange = (colors: Record<string, string>) => {
-        setCustomColors(colors)
+    const handleDownloadJson = () => {
+        if (!convertedData || !file) return
+
+        const dataStr = JSON.stringify(convertedData, null, 2)
+        const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(dataStr)}`
+        const downloadLink = document.createElement("a")
+        downloadLink.setAttribute("href", dataUri)
+        downloadLink.setAttribute("download", `${file.name.replace(".xlsx", "")}.json`)
+        document.body.appendChild(downloadLink)
+        downloadLink.click()
+        document.body.removeChild(downloadLink)
     }
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-            {/* Modern Header */}
+            {/* Header */}
             <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-sm">
                 <div className="container mx-auto flex h-16 items-center justify-between px-4">
                     <div className="flex items-center gap-3">
@@ -216,7 +116,7 @@ export default function ConverterPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <ColorConfig onColorChange={handleColorChange} />
+                        <ColorConfig onColorChange={applyTheme} />
                         <Link href="/">
                             <Button variant="ghost" size="sm" className="gap-2">
                                 <ArrowLeft className="h-4 w-4" />
@@ -228,7 +128,6 @@ export default function ConverterPage() {
             </header>
 
             <main className="container mx-auto p-4 md:p-8 space-y-8 max-w-7xl">
-                {/* Memory Warning */}
                 <MemoryStatus showNodejsBanner={true} />
 
                 {/* File Upload Section */}
@@ -240,47 +139,24 @@ export default function ConverterPage() {
                         </p>
                     </div>
 
-                    <FileUploader onFileUpload={handleFileUpload} />
+                    <FileDropZone onFileSelect={handleFileUpload} selectedFile={file} />
+
+                    {error && <div className="text-center text-destructive">{error}</div>}
                 </div>
 
-                {/* Sheet Selection - Moved above Basic section */}
+                {/* Sheet Selection */}
                 {file && sheets.length > 0 && (
                     <SheetSelector
-                        sheets={sheets}
-                        selectedSheet={selectedSheet}
-                        onSheetChange={(sheet) => {
-                            // Re-parse the file for the new sheet
-                            const reader = new FileReader()
-                            reader.onload = (e) => {
-                                const data = new Uint8Array(e.target?.result as ArrayBuffer)
-                                const XLSX = require("xlsx")
-                                const workbook = XLSX.read(data, { type: "array" })
-                                const worksheet = workbook.Sheets[sheet]
-                                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
-
-                                if (jsonData.length > 0) {
-                                    const headers = jsonData[0] as string[]
-                                    const processedData = []
-                                    for (let i = 1; i < jsonData.length; i++) {
-                                        const row = jsonData[i] as any[]
-                                        const obj: Record<string, any> = {}
-                                        for (let j = 0; j < headers.length; j++) {
-                                            obj[headers[j]] = row[j]
-                                        }
-                                        processedData.push(obj)
-                                    }
-                                    handleSheetSelect(sheet, processedData)
-                                }
-                            }
-                            reader.readAsArrayBuffer(file)
-                        }}
+                        sheets={sheets.map((s) => s.name)}
+                        selectedSheet={currentSheet?.name || ""}
+                        onSheetChange={handleSheetSelect}
                         fileName={file.name}
-                        isLoading={false}
+                        isLoading={isLoading}
                     />
                 )}
 
                 {/* Main Content Tabs */}
-                {file && (
+                {file && currentSheet && (
                     <Tabs defaultValue="preview" className="space-y-6">
                         <TabsList className="grid w-full grid-cols-3 lg:w-[400px] mx-auto">
                             <TabsTrigger value="preview" className="gap-2">
@@ -298,33 +174,39 @@ export default function ConverterPage() {
                         </TabsList>
 
                         <TabsContent value="preview" className="space-y-6">
-                            <ExcelPreview
-                                file={file}
-                                selectedSheet={selectedSheet}
-                                sheetData={sheetData}
-                                onSheetSelect={handleSheetSelect}
-                                onSheetsLoaded={handleSheetsLoaded}
-                            />
+                            <Card className="glass-card hover-lift">
+                                <CardHeader>
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className="p-2 bg-primary/10 rounded-lg">
+                                                <Eye className="h-5 w-5 text-primary" />
+                                            </div>
+                                            <div>
+                                                <CardTitle className="text-lg">Data Preview</CardTitle>
+                                                <CardDescription>Preview of {currentSheet.name} worksheet</CardDescription>
+                                            </div>
+                                        </div>
+                                        <Badge variant="outline" className="gap-1">
+                                            {currentSheet.data.length} rows
+                                        </Badge>
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    <DataPreviewTable data={currentSheet.data} headers={currentSheet.headers} />
+                                </CardContent>
+                            </Card>
                         </TabsContent>
 
                         <TabsContent value="mapping" className="space-y-6">
-                            <div className="grid gap-6">
-                                <AdvancedSettings
-                                    startRow={startRow}
-                                    endRow={endRow}
-                                    onStartRowChange={setStartRow}
-                                    onEndRowChange={setEndRow}
-                                    totalRows={sheetData?.length || 0}
-                                />
+                            <AdvancedSettings
+                                startRow={startRow}
+                                endRow={endRow}
+                                onStartRowChange={setStartRow}
+                                onEndRowChange={setEndRow}
+                                totalRows={currentSheet.data.length}
+                            />
 
-                                {sheetData && (
-                                    <KeyMapping
-                                        columns={Object.keys(sheetData[0] || {})}
-                                        mappings={mappings}
-                                        onMappingsChange={setMappings}
-                                    />
-                                )}
-                            </div>
+                            <KeyMapping columns={currentSheet.headers} mappings={mappings} onMappingsChange={setMappingsDirectly} />
                         </TabsContent>
 
                         <TabsContent value="convert" className="space-y-6">
@@ -341,19 +223,19 @@ export default function ConverterPage() {
                                             </div>
                                         </div>
                                         <Badge variant="outline" className="gap-1">
-                                            Storage: {getLocalStorageSize()} MB
+                                            Storage: {StorageService.getStorageSize()} MB
                                         </Badge>
                                     </div>
                                 </CardHeader>
                                 <CardContent>
                                     <Button
                                         onClick={handleConvert}
-                                        disabled={mappings.length === 0}
+                                        disabled={mappings.length === 0 || isConverting}
                                         className="w-full h-12 text-lg hover-glow"
                                         size="lg"
                                     >
                                         <FileJson className="h-5 w-5 mr-2" />
-                                        Convert to JSON
+                                        {isConverting ? "Converting..." : "Convert to JSON"}
                                     </Button>
                                 </CardContent>
                             </Card>
@@ -399,20 +281,8 @@ export default function ConverterPage() {
                                             <pre className="text-sm font-mono">{JSON.stringify(convertedData, null, 2)}</pre>
                                         </div>
                                     </CardContent>
-                                    <CardFooter className="flex justify-between">
-                                        <Button
-                                            onClick={() => {
-                                                const dataStr = JSON.stringify(convertedData, null, 2)
-                                                const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(dataStr)}`
-                                                const downloadLink = document.createElement("a")
-                                                downloadLink.setAttribute("href", dataUri)
-                                                downloadLink.setAttribute("download", `${file?.name.replace(".xlsx", "")}.json`)
-                                                document.body.appendChild(downloadLink)
-                                                downloadLink.click()
-                                                document.body.removeChild(downloadLink)
-                                            }}
-                                            className="gap-2 hover-glow"
-                                        >
+                                    <CardContent className="flex justify-between pt-0">
+                                        <Button onClick={handleDownloadJson} className="gap-2 hover-glow">
                                             <Download className="h-4 w-4" />
                                             Download JSON
                                         </Button>
@@ -421,7 +291,7 @@ export default function ConverterPage() {
                                             <Eye className="h-4 w-4" />
                                             View in Dashboard
                                         </Button>
-                                    </CardFooter>
+                                    </CardContent>
                                 </Card>
                             )}
                         </TabsContent>

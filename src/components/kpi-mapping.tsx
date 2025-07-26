@@ -23,19 +23,7 @@ import {
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-
-type DataType = "string" | "number" | "boolean" | "auto"
-type MappingType = "excel" | "manual"
-
-interface MappingItem {
-    id: string
-    type: MappingType
-    excelColumn?: string
-    jsonKey: string
-    dataType: DataType
-    manualValue?: string | number | boolean
-    autoIncrement?: boolean
-}
+import type { DataType, MappingType, MappingItem } from "@/types"
 
 interface KeyMappingProps {
     columns: string[]
@@ -43,22 +31,26 @@ interface KeyMappingProps {
     onMappingsChange: (mappings: MappingItem[]) => void
 }
 
-function SortableItem({
-    item,
-    onUpdate,
-    onDelete,
-    columns,
-}: {
+interface SortableItemProps {
     item: MappingItem
     onUpdate: (item: MappingItem) => void
     onDelete: (id: string) => void
     columns: string[]
-}) {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
+}
+
+function SortableItem({ item, onUpdate, onDelete, columns }: SortableItemProps) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+        id: item?.id || `fallback-${Date.now()}`,
+    })
 
     const style = {
         transform: CSS.Transform.toString(transform),
         transition,
+    }
+
+    // Safety check - if item is undefined, render nothing
+    if (!item || !item.id) {
+        return null
     }
 
     const handleDataTypeChange = (dataType: DataType) => {
@@ -79,6 +71,14 @@ function SortableItem({
 
     const handleAutoIncrementChange = (checked: boolean) => {
         onUpdate({ ...item, autoIncrement: checked })
+    }
+
+    const handleExcelColumnChange = (value: string) => {
+        onUpdate({ ...item, excelColumn: value })
+    }
+
+    const handleJsonKeyChange = (value: string) => {
+        onUpdate({ ...item, jsonKey: value })
     }
 
     return (
@@ -111,10 +111,7 @@ function SortableItem({
                                 {item.type === "excel" ? (
                                     <div className="space-y-1">
                                         <Label className="text-xs text-muted-foreground">Source Column</Label>
-                                        <Select
-                                            value={item.excelColumn || ""}
-                                            onValueChange={(value) => onUpdate({ ...item, excelColumn: value })}
-                                        >
+                                        <Select value={item.excelColumn || ""} onValueChange={handleExcelColumnChange}>
                                             <SelectTrigger className="h-9">
                                                 <SelectValue placeholder="Select column" />
                                             </SelectTrigger>
@@ -142,8 +139,8 @@ function SortableItem({
                                 <div className="space-y-1">
                                     <Label className="text-xs text-muted-foreground">JSON Key</Label>
                                     <Input
-                                        value={item.jsonKey}
-                                        onChange={(e) => onUpdate({ ...item, jsonKey: e.target.value })}
+                                        value={item.jsonKey || ""}
+                                        onChange={(e) => handleJsonKeyChange(e.target.value)}
                                         placeholder="key_name"
                                         className="h-9"
                                     />
@@ -205,13 +202,123 @@ function SortableItem({
     )
 }
 
-export default function KeyMapping({ columns, mappings, onMappingsChange }: KeyMappingProps) {
+function MappingForm({
+    columns,
+    onAddMapping,
+}: {
+    columns: string[]
+    onAddMapping: (
+        type: MappingType,
+        jsonKey: string,
+        excelColumn?: string,
+        manualValue?: string,
+        dataType?: DataType,
+    ) => boolean
+}) {
     const [newJsonKey, setNewJsonKey] = useState("")
     const [newMappingType, setNewMappingType] = useState<MappingType>("excel")
     const [newExcelColumn, setNewExcelColumn] = useState("")
     const [newManualValue, setNewManualValue] = useState("")
     const [newDataType, setNewDataType] = useState<DataType>("auto")
 
+    const handleAddMapping = () => {
+        const success = onAddMapping(
+            newMappingType,
+            newJsonKey,
+            newMappingType === "excel" ? newExcelColumn : undefined,
+            newMappingType === "manual" ? newManualValue : undefined,
+            newDataType,
+        )
+
+        if (success) {
+            // Reset form
+            setNewJsonKey("")
+            setNewExcelColumn("")
+            setNewManualValue("")
+            setNewDataType("auto")
+        }
+    }
+
+    const isValid = newJsonKey.trim() && (newMappingType === "manual" || newExcelColumn)
+
+    return (
+        <div className="space-y-4 p-4 bg-muted/30 rounded-lg border border-dashed">
+            <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                    <PlusCircle className="h-4 w-4 text-primary" />
+                    <Label className="font-medium">Add New Mapping</Label>
+                </div>
+                <Select value={newMappingType} onValueChange={(value: MappingType) => setNewMappingType(value)}>
+                    <SelectTrigger className="w-32">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="excel">Excel Column</SelectItem>
+                        <SelectItem value="manual">Manual Value</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                {newMappingType === "excel" ? (
+                    <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Excel Column</Label>
+                        <Select value={newExcelColumn} onValueChange={setNewExcelColumn}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select column" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {columns.map((column) => (
+                                    <SelectItem key={column} value={column}>
+                                        {column}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                ) : (
+                    <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Manual Value</Label>
+                        <Input
+                            value={newManualValue}
+                            onChange={(e) => setNewManualValue(e.target.value)}
+                            placeholder="Enter value"
+                        />
+                    </div>
+                )}
+
+                <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">JSON Key</Label>
+                    <Input value={newJsonKey} onChange={(e) => setNewJsonKey(e.target.value)} placeholder="key_name" />
+                </div>
+
+                <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Data Type</Label>
+                    <Select value={newDataType} onValueChange={(value: DataType) => setNewDataType(value)}>
+                        <SelectTrigger>
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {newMappingType === "excel" && <SelectItem value="auto">Auto</SelectItem>}
+                            <SelectItem value="string">String</SelectItem>
+                            <SelectItem value="number">Number</SelectItem>
+                            <SelectItem value="boolean">Boolean</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                <div className="flex items-end">
+                    <Button onClick={handleAddMapping} disabled={!isValid} className="w-full hover-glow">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add
+                    </Button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+export default function KeyMapping({ columns, mappings, onMappingsChange }: KeyMappingProps) {
     const sensors = useSensors(
         useSensor(PointerSensor),
         useSensor(KeyboardSensor, {
@@ -219,44 +326,54 @@ export default function KeyMapping({ columns, mappings, onMappingsChange }: KeyM
         }),
     )
 
+    // Filter out any undefined or invalid mappings
+    const validMappings = mappings.filter(
+        (mapping): mapping is MappingItem => mapping && typeof mapping === "object" && mapping.id,
+    )
+
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event
 
         if (over && active.id !== over.id) {
-            const oldIndex = mappings.findIndex((item) => item.id === active.id)
-            const newIndex = mappings.findIndex((item) => item.id === over.id)
+            const oldIndex = validMappings.findIndex((item) => item.id === active.id)
+            const newIndex = validMappings.findIndex((item) => item.id === over.id)
 
-            onMappingsChange(arrayMove(mappings, oldIndex, newIndex))
+            if (oldIndex !== -1 && newIndex !== -1) {
+                onMappingsChange(arrayMove(validMappings, oldIndex, newIndex))
+            }
         }
     }
 
-    const handleAddMapping = () => {
-        if (!newJsonKey.trim()) return
-        if (newMappingType === "excel" && !newExcelColumn) return
+    const handleAddMapping = (
+        type: MappingType,
+        jsonKey: string,
+        excelColumn?: string,
+        manualValue?: string,
+        dataType: DataType = "auto",
+    ): boolean => {
+        if (!jsonKey.trim()) return false
+        if (type === "excel" && !excelColumn) return false
 
         const newMapping: MappingItem = {
-            id: `mapping_${Date.now()}`,
-            type: newMappingType,
-            jsonKey: newJsonKey,
-            dataType: newMappingType === "excel" ? newDataType : newDataType === "auto" ? "string" : newDataType,
-            ...(newMappingType === "excel" ? { excelColumn: newExcelColumn } : { manualValue: newManualValue }),
+            id: `mapping_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            type,
+            jsonKey,
+            dataType: type === "excel" ? dataType : dataType === "auto" ? "string" : dataType,
+            ...(type === "excel" ? { excelColumn } : { manualValue }),
         }
 
-        onMappingsChange([...mappings, newMapping])
-
-        // Reset form
-        setNewJsonKey("")
-        setNewExcelColumn("")
-        setNewManualValue("")
-        setNewDataType("auto")
+        onMappingsChange([...validMappings, newMapping])
+        return true
     }
 
     const handleUpdateMapping = (updatedItem: MappingItem) => {
-        onMappingsChange(mappings.map((item) => (item.id === updatedItem.id ? updatedItem : item)))
+        if (!updatedItem || !updatedItem.id) return
+
+        onMappingsChange(validMappings.map((item) => (item.id === updatedItem.id ? updatedItem : item)))
     }
 
     const handleDeleteMapping = (id: string) => {
-        onMappingsChange(mappings.filter((item) => item.id !== id))
+        onMappingsChange(validMappings.filter((item) => item.id !== id))
     }
 
     return (
@@ -275,91 +392,15 @@ export default function KeyMapping({ columns, mappings, onMappingsChange }: KeyM
                 </CardHeader>
                 <CardContent className="space-y-6">
                     {/* Add new mapping form */}
-                    <div className="space-y-4 p-4 bg-muted/30 rounded-lg border border-dashed">
-                        <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2">
-                                <PlusCircle className="h-4 w-4 text-primary" />
-                                <Label className="font-medium">Add New Mapping</Label>
-                            </div>
-                            <Select value={newMappingType} onValueChange={(value: MappingType) => setNewMappingType(value)}>
-                                <SelectTrigger className="w-32">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="excel">Excel Column</SelectItem>
-                                    <SelectItem value="manual">Manual Value</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                            {newMappingType === "excel" ? (
-                                <div className="space-y-1">
-                                    <Label className="text-xs text-muted-foreground">Excel Column</Label>
-                                    <Select value={newExcelColumn} onValueChange={setNewExcelColumn}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select column" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {columns.map((column) => (
-                                                <SelectItem key={column} value={column}>
-                                                    {column}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            ) : (
-                                <div className="space-y-1">
-                                    <Label className="text-xs text-muted-foreground">Manual Value</Label>
-                                    <Input
-                                        value={newManualValue}
-                                        onChange={(e) => setNewManualValue(e.target.value)}
-                                        placeholder="Enter value"
-                                    />
-                                </div>
-                            )}
-
-                            <div className="space-y-1">
-                                <Label className="text-xs text-muted-foreground">JSON Key</Label>
-                                <Input value={newJsonKey} onChange={(e) => setNewJsonKey(e.target.value)} placeholder="key_name" />
-                            </div>
-
-                            <div className="space-y-1">
-                                <Label className="text-xs text-muted-foreground">Data Type</Label>
-                                <Select value={newDataType} onValueChange={(value: DataType) => setNewDataType(value)}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {newMappingType === "excel" && <SelectItem value="auto">Auto</SelectItem>}
-                                        <SelectItem value="string">String</SelectItem>
-                                        <SelectItem value="number">Number</SelectItem>
-                                        <SelectItem value="boolean">Boolean</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="flex items-end">
-                                <Button
-                                    onClick={handleAddMapping}
-                                    disabled={!newJsonKey.trim() || (newMappingType === "excel" && !newExcelColumn)}
-                                    className="w-full hover-glow"
-                                >
-                                    <Plus className="h-4 w-4 mr-2" />
-                                    Add
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
+                    <MappingForm columns={columns} onAddMapping={handleAddMapping} />
 
                     <Separator />
 
                     {/* Existing mappings */}
-                    {mappings.length > 0 ? (
+                    {validMappings.length > 0 ? (
                         <div className="space-y-4">
                             <div className="flex items-center justify-between">
-                                <Label className="font-medium">Current Mappings ({mappings.length})</Label>
+                                <Label className="font-medium">Current Mappings ({validMappings.length})</Label>
                                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                     <GripVertical className="h-3 w-3" />
                                     Drag to reorder
@@ -367,9 +408,9 @@ export default function KeyMapping({ columns, mappings, onMappingsChange }: KeyM
                             </div>
 
                             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                                <SortableContext items={mappings.map((m) => m.id)} strategy={verticalListSortingStrategy}>
+                                <SortableContext items={validMappings.map((m) => m.id)} strategy={verticalListSortingStrategy}>
                                     <div className="space-y-3">
-                                        {mappings.map((item) => (
+                                        {validMappings.map((item) => (
                                             <SortableItem
                                                 key={item.id}
                                                 item={item}
