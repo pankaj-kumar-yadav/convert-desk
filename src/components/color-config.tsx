@@ -15,9 +15,10 @@ import {
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Settings } from "lucide-react"
+import { ColorTheme } from "@/types"
 
 interface ColorConfigProps {
-    onColorChange: (colors: Record<string, string>) => void
+    onColorChange: (colors: ColorTheme) => void
 }
 
 export default function ColorConfig({ onColorChange }: ColorConfigProps) {

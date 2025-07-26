@@ -20,6 +20,7 @@ import { StorageService } from "@/services/storage-service"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import KeyMapping from "@/components/kpi-mapping"
+import { ColorTheme } from "@/types"
 
 export default function ConverterPage() {
     const [file, setFile] = useState<File | null>(null)
@@ -116,7 +117,7 @@ export default function ConverterPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <ColorConfig onColorChange={applyTheme} />
+                        <ColorConfig onColorChange={(colors) => applyTheme(colors as ColorTheme)} />
                         <Link href="/">
                             <Button variant="ghost" size="sm" className="gap-2">
                                 <ArrowLeft className="h-4 w-4" />

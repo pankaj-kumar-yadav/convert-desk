@@ -11,7 +11,7 @@ import { useMemoryWarning } from "@/hooks/use-memory-warning"
 import { useTheme } from "@/hooks/use-theme"
 import ColorConfig from "@/components/color-config"
 import Link from "next/link"
-import type { ConversionData } from "@/types"
+import type { ColorTheme, ConversionData } from "@/types"
 
 export default function DashboardPage() {
     const [conversions, setConversions] = useState<Record<string, ConversionData>>({})
@@ -67,7 +67,8 @@ export default function DashboardPage() {
                 <div className="container mx-auto flex justify-between items-center">
                     <h1 className="text-2xl font-bold">Dashboard</h1>
                     <div className="flex items-center gap-2">
-                        <ColorConfig onColorChange={applyTheme} />
+                        <ColorConfig onColorChange={(colors) => applyTheme(colors as ColorTheme)} />
+
                         <Link href="/">
                             <Button variant="outline" className="text-white border-white hover:bg-gray-700 bg-transparent">
                                 <ArrowLeft className="mr-2 h-4 w-4" /> Back to Home
