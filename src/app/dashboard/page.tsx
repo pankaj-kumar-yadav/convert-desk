@@ -16,13 +16,19 @@ import type { ColorTheme, ConversionData } from "@/types"
 export default function DashboardPage() {
     const [conversions, setConversions] = useState<Record<string, ConversionData>>({})
     const [showClearWarning, setShowClearWarning] = useState(true)
+    const [storageSize, setStorageSize] = useState<number | null>(null)
+
     const { showMemoryWarning, memoryUsage } = useMemoryWarning()
     const { applyTheme } = useTheme()
 
     useEffect(() => {
-        loadConversions()
-        setShowClearWarning(!StorageService.isClearWarningDismissed())
+        if (typeof window !== "undefined") {
+            loadConversions()
+            setShowClearWarning(!StorageService.isClearWarningDismissed())
+            setStorageSize(parseInt(StorageService.getStorageSize(), 10));
+        }
     }, [])
+
 
     const loadConversions = () => {
         setConversions(StorageService.getAllConversions())
@@ -81,9 +87,11 @@ export default function DashboardPage() {
             <main className="container mx-auto p-4 md:p-8 max-w-full overflow-x-hidden">
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold text-gray-800">Your Conversions</h2>
-                    <Badge variant="outline" className="bg-gray-200 text-gray-800 border-gray-400">
-                        Storage: {StorageService.getStorageSize()} MB
-                    </Badge>
+                    {storageSize !== null && (
+                        <Badge variant="outline" className="bg-gray-200 text-gray-800 border-gray-400">
+                            Storage: {storageSize} MB
+                        </Badge>
+                    )}
                 </div>
 
                 {showMemoryWarning && (

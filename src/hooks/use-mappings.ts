@@ -52,7 +52,7 @@ export function useMappings() {
     // Filter out any invalid mappings
     const validMappings = newMappings.filter(
       (mapping): mapping is MappingItem =>
-        mapping && typeof mapping === "object" && mapping.id
+        !!(mapping && typeof mapping === "object" && mapping.id)
     );
     setMappings(validMappings);
   }, []);

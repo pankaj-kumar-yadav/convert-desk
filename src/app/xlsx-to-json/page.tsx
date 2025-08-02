@@ -30,8 +30,8 @@ export default function ConverterPage() {
 
     const { sheets, currentSheet, isLoading, error, parseFile, selectSheet, reset } = useExcelParser()
     const { convertedData, isConverting, convert, reset: resetConversion } = useConversion()
-    const { mappings, addMapping, updateMapping, deleteMapping, setMappingsDirectly } = useMappings()
-    const { currentTheme, applyTheme } = useTheme()
+    const { mappings, setMappingsDirectly } = useMappings()
+    const { applyTheme } = useTheme()
 
     const searchParams = useSearchParams()
     const router = useRouter()
@@ -84,7 +84,8 @@ export default function ConverterPage() {
             setCopied(true)
             setTimeout(() => setCopied(false), 2000)
         } catch (error) {
-            alert("Failed to copy to clipboard")
+            alert("Failed to copy to clipboard");
+            console.error("Error copying to clipboard:", error);
         }
     }
 

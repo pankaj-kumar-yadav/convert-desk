@@ -1,8 +1,8 @@
 import * as XLSX from "xlsx";
 import type { ExcelSheet } from "@/types";
 
-export class ExcelService {
-  static async parseFile(file: File): Promise<ExcelSheet[]> {
+export const ExcelService = {
+  async parseFile(file: File): Promise<ExcelSheet[]> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
 
@@ -20,7 +20,7 @@ export class ExcelService {
             }
 
             const headers = jsonData[0] as string[];
-            const data = jsonData.slice(1).map((row: any[]) => {
+            const data = (jsonData.slice(1) as any[][]).map((row) => {
               const obj: Record<string, any> = {};
               headers.forEach((header, index) => {
                 obj[header] = row[index];
@@ -40,17 +40,17 @@ export class ExcelService {
       reader.onerror = () => reject(new Error("Failed to read file"));
       reader.readAsArrayBuffer(file);
     });
-  }
+  },
 
-  static validateFile(file: File): boolean {
+  validateFile(file: File): boolean {
     const validTypes = [
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "application/vnd.ms-excel",
     ];
     return validTypes.includes(file.type);
-  }
+  },
 
-  static formatFileSize(bytes: number): string {
+  formatFileSize(bytes: number): string {
     if (bytes === 0) return "0 Bytes";
     const k = 1024;
     const sizes = ["Bytes", "KB", "MB", "GB"];
@@ -58,5 +58,5 @@ export class ExcelService {
     return (
       Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
     );
-  }
-}
+  },
+};

@@ -328,7 +328,7 @@ export default function KeyMapping({ columns, mappings, onMappingsChange }: KeyM
 
     // Filter out any undefined or invalid mappings
     const validMappings = mappings.filter(
-        (mapping): mapping is MappingItem => mapping && typeof mapping === "object" && mapping.id,
+        (mapping): mapping is MappingItem => !!mapping && typeof mapping === "object" && !!mapping.id,
     )
 
     const handleDragEnd = (event: DragEndEvent) => {

@@ -1,7 +1,7 @@
 import type { ConversionConfig } from "@/types";
 
-export class ConversionService {
-  static convertData(sheetData: any[], config: ConversionConfig): any[] {
+export const ConversionService = {
+  convertData(sheetData: any[], config: ConversionConfig): any[] {
     const { startRow, endRow, mappings } = config;
     const autoIncrementCounters: Record<string, number> = {};
 
@@ -14,16 +14,14 @@ export class ConversionService {
 
     return sheetData
       .map((row: any, index: number) => {
-        // Apply row filtering
         if (index < startRow - 1) return null;
         if (endRow !== null && index >= endRow) return null;
 
         const newRow: Record<string, any> = {};
 
-        // Apply mappings
         mappings.forEach((mapping) => {
           if (mapping.type === "excel" && mapping.excelColumn) {
-            newRow[mapping.jsonKey] = this.processExcelValue(
+            newRow[mapping.jsonKey] = processExcelValue(
               row[mapping.excelColumn],
               mapping.dataType
             );
@@ -37,37 +35,38 @@ export class ConversionService {
         return newRow;
       })
       .filter(Boolean);
-  }
+  },
+};
 
-  private static processExcelValue(value: any, dataType: string): any {
-    switch (dataType) {
-      case "string":
-        return String(value ?? "");
-      case "number":
-        const num = Number(value);
-        return isNaN(num) ? 0 : num;
-      case "boolean":
-        if (typeof value === "string") {
-          const lower = value.toLowerCase();
-          return lower === "true" || lower === "yes" || lower === "1";
-        }
-        return Boolean(value);
-      case "auto":
-      default:
-        return this.inferType(value);
+// Helpers
+function processExcelValue(value: any, dataType: string): any {
+  switch (dataType) {
+    case "string":
+      return String(value ?? "");
+    case "number":
+      const num = Number(value);
+      return isNaN(num) ? 0 : num;
+    case "boolean":
+      if (typeof value === "string") {
+        const lower = value.toLowerCase();
+        return lower === "true" || lower === "yes" || lower === "1";
+      }
+      return Boolean(value);
+    case "auto":
+    default:
+      return inferType(value);
+  }
+}
+
+function inferType(value: any): any {
+  if (typeof value === "string") {
+    const lower = value.toLowerCase();
+    if (lower === "true" || lower === "false") {
+      return lower === "true";
+    }
+    if (!isNaN(Number(value)) && value.trim() !== "") {
+      return Number(value);
     }
   }
-
-  private static inferType(value: any): any {
-    if (typeof value === "string") {
-      const lower = value.toLowerCase();
-      if (lower === "true" || lower === "false") {
-        return lower === "true";
-      }
-      if (!isNaN(Number(value)) && value.trim() !== "") {
-        return Number(value);
-      }
-    }
-    return value;
-  }
+  return value;
 }
