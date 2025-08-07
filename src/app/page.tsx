@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { ArrowRight, FileSpreadsheet, Database, Zap, Shield } from "lucide-react"
 import Link from "next/link"
+import { appName } from "@/constants/app-constants"
 
 export default function Home() {
   return (
@@ -16,7 +17,7 @@ export default function Home() {
                 <Database className="h-8 w-8 text-primary" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold">XLSX to JSON</h1>
+                <h1 className="text-2xl font-bold">{appName}</h1>
                 <p className="text-sm text-muted-foreground">Advanced Excel Converter</p>
               </div>
             </div>
@@ -170,7 +171,7 @@ export default function Home() {
       <footer className="border-t bg-muted/30 mt-24">
         <div className="container mx-auto px-4 py-8 text-center">
           <p className="text-muted-foreground">
-            &copy; {new Date().getFullYear()} XLSX to JSON Converter. Built with Next.js and shadcn/ui.
+            &copy; {new Date().getFullYear()} {appName}. Built with Next.js and shadcn/ui.
           </p>
         </div>
       </footer>

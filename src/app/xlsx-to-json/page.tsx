@@ -21,6 +21,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import KeyMapping from "@/components/kpi-mapping"
 import { ColorTheme } from "@/types"
+import { appName } from "@/constants/app-constants"
 
 export default function ConverterPage() {
     const [file, setFile] = useState<File | null>(null)
@@ -112,7 +113,7 @@ export default function ConverterPage() {
                             <Sparkles className="h-6 w-6 text-primary" />
                         </div>
                         <div>
-                            <h1 className="text-xl font-bold">XLSX to JSON</h1>
+                            <h1 className="text-xl font-bold">{appName}</h1>
                             <p className="text-xs text-muted-foreground">Advanced Converter</p>
                         </div>
                     </div>
