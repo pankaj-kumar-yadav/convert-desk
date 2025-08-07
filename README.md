@@ -1,4 +1,6 @@
-# XLSX to JSON Converter
+# Convert Desk
+
+## XLSX to JSON Converter
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Next.js](https://img.shields.io/badge/Next.js-15.4-black)](https://nextjs.org/)
@@ -236,13 +238,13 @@ NEXT_PUBLIC_ANALYTICS_ID=your_analytics_id
 
 ### Screenshots
 
-![Main Interface](doc/images/main-interface.png)
+![Main Interface](/public/doc/images/main-interface.png)
 _Main conversion interface with file upload_
 
-![Mapping Configuration](doc/images/mapping-config.png)
+![Mapping Configuration](/public/doc/images/mapping-config.png)
 _Advanced key mapping with drag-and-drop_
 
-![Conversion Results](doc/images/conversion-results.png)
+![Conversion Results](/public/doc/images/conversion-results.png)
 _JSON output with copy and download options_
 
 ## Project Structure
