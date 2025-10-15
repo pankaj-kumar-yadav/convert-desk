@@ -28,6 +28,7 @@ export interface ConversionConfig {
   startRow: number;
   endRow: number | null;
   mappings: MappingItem[];
+  preserveEmpty?: boolean;
 }
 
 export interface ColorTheme {

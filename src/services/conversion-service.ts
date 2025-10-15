@@ -2,10 +2,15 @@ import type { ConversionConfig } from "@/types";
 
 export const ConversionService = {
   convertData(sheetData: any[], config: ConversionConfig): any[] {
-    const { startRow, endRow, mappings } = config;
+    const {
+      startRow,
+      endRow,
+      mappings,
+      preserveEmpty = true, // ✅ new flag
+    } = config;
+
     const autoIncrementCounters: Record<string, number> = {};
 
-    // Initialize auto-increment counters
     mappings.forEach((mapping) => {
       if (mapping.autoIncrement && mapping.type === "manual") {
         autoIncrementCounters[mapping.id] = 1;
@@ -20,15 +25,28 @@ export const ConversionService = {
         const newRow: Record<string, any> = {};
 
         mappings.forEach((mapping) => {
+          let value: any = "";
+
           if (mapping.type === "excel" && mapping.excelColumn) {
+            value = row?.[mapping.excelColumn];
+            if (
+              !preserveEmpty &&
+              (value === undefined || value === null || value === "")
+            )
+              return;
+
             newRow[mapping.jsonKey] = processExcelValue(
-              row[mapping.excelColumn],
+              value === undefined || value === null ? "" : value,
               mapping.dataType
             );
           } else if (mapping.type === "manual") {
-            newRow[mapping.jsonKey] = mapping.autoIncrement
+            const manualVal = mapping.autoIncrement
               ? autoIncrementCounters[mapping.id]++
-              : mapping.manualValue;
+              : mapping.manualValue ?? "";
+
+            if (!preserveEmpty && manualVal === "") return;
+
+            newRow[mapping.jsonKey] = manualVal;
           }
         });
 
@@ -59,14 +77,11 @@ function processExcelValue(value: any, dataType: string): any {
 }
 
 function inferType(value: any): any {
+  if (value === undefined || value === null || value === "") return "";
   if (typeof value === "string") {
     const lower = value.toLowerCase();
-    if (lower === "true" || lower === "false") {
-      return lower === "true";
-    }
-    if (!isNaN(Number(value)) && value.trim() !== "") {
-      return Number(value);
-    }
+    if (lower === "true" || lower === "false") return lower === "true";
+    if (!isNaN(Number(value)) && value.trim() !== "") return Number(value);
   }
   return value;
 }
